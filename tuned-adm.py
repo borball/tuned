@@ -82,6 +82,7 @@ if __name__ == "__main__":
 	parser_profile_info = subparsers.add_parser("profile_info", help="show information/description of given profile or current profile if no profile is specified")
 	parser_profile_info.set_defaults(action="profile_info")
 	parser_profile_info.add_argument("profile", metavar="profile", type=str, nargs="?", default="", help="profile name, current profile if not specified")
+	parser_profile_info.add_argument("--verbose", "-v", action="store_true", help="show detailed merged settings from profile hierarchy")
 
 	if config.get(consts.CFG_RECOMMEND_COMMAND, consts.CFG_DEF_RECOMMEND_COMMAND):
 		parser_off = subparsers.add_parser("recommend", help="recommend profile")

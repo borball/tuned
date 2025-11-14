@@ -144,7 +144,131 @@ class Admin(object):
 		profile_name = self._cmd.get_post_loaded_profile()
 		return profile_name
 
-	def _print_profile_info(self, profile, profile_info):
+	def _load_profile_hierarchy(self, profile_name, processed=None, level=0):
+		"""
+		Recursively load profile hierarchy with tracking.
+		Returns a list of tuples: (profile_name, config_dict, level, parent_name)
+		"""
+		if processed is None:
+			processed = set()
+		
+		import re
+		from tuned.utils.config_parser import ConfigParser, Error
+		
+		if profile_name in processed:
+			return []
+		
+		processed.add(profile_name)
+		hierarchy = []
+		
+		config_file = self._profiles_locator.get_config(profile_name)
+		if config_file is None or config_file == "":
+			return []
+		
+		try:
+			config = ConfigParser(delimiters=('='), inline_comment_prefixes=('#'), allow_no_value=True, strict=False)
+			config.optionxform = str
+			with open(config_file) as f:
+				config.read_string("[" + consts.MAGIC_HEADER_NAME + "]\n" + f.read())
+		except (IOError, OSError, Error) as e:
+			return []
+		
+		# Check for included profiles
+		included_profiles = []
+		if consts.PLUGIN_MAIN_UNIT_NAME in config.sections():
+			if "include" in config.options(consts.PLUGIN_MAIN_UNIT_NAME):
+				include_value = config.get(consts.PLUGIN_MAIN_UNIT_NAME, "include", raw=True)
+				included_profiles = re.split(r"\s*[,;]\s*", include_value)
+		
+		# First, recursively load included profiles
+		for included in included_profiles:
+			if included and included not in processed:
+				hierarchy.extend(self._load_profile_hierarchy(included, processed, level + 1))
+		
+		# Convert config to dict
+		config_dict = {}
+		for section in config.sections():
+			if section != consts.MAGIC_HEADER_NAME:
+				config_dict[section] = {}
+				for option in config.options(section):
+					config_dict[section][option] = config.get(section, option, raw=True)
+		
+		# Add this profile to hierarchy
+		parent_info = " (includes: %s)" % ", ".join(included_profiles) if included_profiles else ""
+		hierarchy.append((profile_name, config_dict, level, parent_info))
+		
+		return hierarchy
+
+	def _print_detailed_profile_info(self, profile_name):
+		"""
+		Print detailed merged profile information with source annotations.
+		"""
+		hierarchy = self._load_profile_hierarchy(profile_name)
+		
+		if not hierarchy:
+			print("Unable to load profile hierarchy for '%s'" % profile_name)
+			return
+		
+		print()
+		print("Profile Hierarchy:")
+		print("-" * 80)
+		
+		# Print hierarchy tree
+		# Find the base profile (lowest level in hierarchy)
+		max_level = max(level for _, _, level, _ in hierarchy)
+		
+		for prof_name, config, level, parent_info in hierarchy:
+			indent = "  " * (max_level - level)
+			if prof_name == profile_name:
+				# This is the target profile being queried
+				marker = " (target profile)"
+			elif level == 0:
+				# This is a base/parent profile
+				marker = " (base)"
+			else:
+				# This is an intermediate included profile
+				marker = " (included)"
+			print("%s└─ %s%s%s" % (indent, prof_name, marker, parent_info))
+		
+		print()
+		print("Merged Settings by Section:")
+		print("-" * 80)
+		
+		# Track which profile contributed each setting
+		merged_settings = {}  # section -> option -> (value, source_profile)
+		
+		# Merge in order (base profiles first, then overrides)
+		for prof_name, config, level, parent_info in hierarchy:
+			for section, options in config.items():
+				if section not in merged_settings:
+					merged_settings[section] = {}
+				for option, value in options.items():
+					# Track the source profile for this setting
+					merged_settings[section][option] = (value, prof_name)
+		
+		# Print merged settings grouped by section
+		for section in sorted(merged_settings.keys()):
+			print()
+			print("[%s]" % section)
+			
+			for option in sorted(merged_settings[section].keys()):
+				value, source = merged_settings[section][option]
+				
+				# Format the output
+				if source == profile_name or (len(hierarchy) == 1):
+					# Setting is from the target profile itself
+					print("  %-30s = %s" % (option, value))
+				else:
+					# Setting is inherited from a parent profile
+					print("  %-30s = %-40s  # from: %s" % (option, value, source))
+		
+		print()
+		print("-" * 80)
+		print("Note: Settings without '# from:' annotation are defined in the profile itself.")
+		print("      Settings with '# from:' annotation are inherited from parent profiles.")
+		print("-" * 80)
+
+	def _print_profile_info(self, profile, profile_info, verbose=False):
 		if profile_info[0] == True:
 			print("Profile name:")
 			print(profile_info[1])
@@ -154,22 +278,28 @@ class Admin(object):
 			print()
 			print("Profile description:")
 			print(profile_info[3])
+			if verbose:
+				print()
+				print("="*80)
+				print("DETAILED MERGED SETTINGS (with source profile annotations)")
+				print("="*80)
+				self._print_detailed_profile_info(profile)
 			return True
 		else:
 			print("Unable to get information about profile '%s'" % profile)
 			return False
 
-	def _action_dbus_profile_info(self, profile = ""):
+	def _action_dbus_profile_info(self, profile = "", verbose=False):
 		if profile == "":
 			profile = self._dbus_get_active_profile()
 		if profile:
-			res = self._print_profile_info(profile, self._controller.profile_info(profile))
+			res = self._print_profile_info(profile, self._controller.profile_info(profile), verbose)
 		else:
 			print("No current active profile.")
 			res = False
 		return self._controller.exit(res)
 
-	def _action_profile_info(self, profile = ""):
+	def _action_profile_info(self, profile = "", verbose=False):
 		if profile == "":
 			try:
 				profile = self._get_active_profile()
@@ -179,7 +309,7 @@ class Admin(object):
 			except TunedException as e:
 				self._error(str(e))
 				return False
-		return self._print_profile_info(profile, self._profiles_locator.get_profile_attrs(profile, [consts.PROFILE_ATTR_SUMMARY, consts.PROFILE_ATTR_DESCRIPTION], ["", ""]))
+		return self._print_profile_info(profile, self._profiles_locator.get_profile_attrs(profile, [consts.PROFILE_ATTR_SUMMARY, consts.PROFILE_ATTR_DESCRIPTION], ["", ""]), verbose)
 
 	def _print_profile_name(self, profile_name):
 		if profile_name is None:
