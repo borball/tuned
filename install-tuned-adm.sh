@@ -8,7 +8,7 @@ set -e
 # Configuration
 GITHUB_USER="${GITHUB_USER:-borball}"
 GITHUB_REPO="${GITHUB_REPO:-tuned}"
-TAG="${TAG:-main}"  # Use 'main' branch by default, override with TAG=v1.0
+TAG="${TAG:-master}"  # Use 'main' branch by default, override with TAG=v1.0
 BASE_URL="https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${TAG}"
 
 # Installation directories
