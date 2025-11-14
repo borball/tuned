@@ -8,7 +8,7 @@ set -e
 # Configuration
 GITHUB_USER="${GITHUB_USER:-borball}"
 GITHUB_REPO="${GITHUB_REPO:-tuned}"
-TAG="${TAG:-master}"  # Use 'main' branch by default, override with TAG=v1.0
+TAG="${TAG:-main}"  # Use 'main' branch by default, override with TAG=v1.0
 BASE_URL="https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${TAG}"
 
 # Installation directories
@@ -101,6 +101,19 @@ if ! download_file "${BASE_URL}/tuned/admin/admin.py" "$TUNED_ADMIN_DIR/admin.py
     exit 1
 fi
 
+# Create minimal module structure  
+info "Creating module structure..."
+mkdir -p "$TUNED_ADMIN_DIR"
+
+# Don't create tuned/__init__.py - let system tuned handle that
+# Just create admin/__init__.py
+cat > "$TUNED_ADMIN_DIR/__init__.py" << 'ADMININITEOF'
+from .admin import Admin
+__all__ = ["Admin"]
+ADMININITEOF
+
+success "Module structure created"
+
 # Check if system tuned Python module is available
 info "Checking for system tuned module..."
 SYSTEM_TUNED_PATH=""
@@ -130,24 +143,23 @@ cat > "$USER_BIN/tuned-adm" << EOF
 import sys
 import os
 
-# Use system tuned module but with our enhanced admin module
 TUNED_LIB = '$TUNED_LIB'
-SYSTEM_TUNED = '$SYSTEM_TUNED_PATH'
 
-# Insert our enhanced admin module path first, but keep system tuned in path
+# Import system tuned first to get the base package
+import tuned
+
+# Now patch sys.modules to use our enhanced admin module
 sys.path.insert(0, TUNED_LIB)
+# Force reload of tuned.admin to get our version
+if 'tuned.admin' in sys.modules:
+    del sys.modules['tuned.admin']
+if 'tuned.admin.admin' in sys.modules:
+    del sys.modules['tuned.admin.admin']
 
-# Monkey-patch to use our enhanced admin module
-import tuned.admin
-original_admin_path = tuned.admin.__file__
-tuned.admin = __import__('tuned.admin', fromlist=['Admin'])
-# Replace with our enhanced version
-sys.modules['tuned.admin'] = __import__('tuned.admin', fromlist=['admin'])
-
-# Import consts to override profile directories if needed
-import tuned.consts as consts
-# Ensure we use system profile directories
-consts.CFG_DEF_PROFILE_DIRS = ['/usr/lib/tuned', '/etc/tuned']
+# Import our enhanced admin - this will now come from TUNED_LIB
+import tuned.admin.admin
+sys.modules['tuned.admin'] = tuned.admin
+sys.modules['tuned.admin.admin'] = tuned.admin.admin
 
 # Execute the enhanced tuned-adm.py
 os.chdir(TUNED_LIB)
