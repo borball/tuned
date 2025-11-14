@@ -95,24 +95,43 @@ if ! download_file "${BASE_URL}/tuned-adm.py" "$TUNED_LIB/tuned-adm.py" "tuned-a
     exit 1
 fi
 
-# Download admin module
+# Download admin module and its dependencies
 if ! download_file "${BASE_URL}/tuned/admin/admin.py" "$TUNED_ADMIN_DIR/admin.py" "admin.py"; then
     error "Installation failed"
     exit 1
 fi
 
-# Create minimal module structure  
-info "Creating module structure..."
-mkdir -p "$TUNED_ADMIN_DIR"
+# Download admin module dependencies
+info "Downloading admin module dependencies..."
 
-# Don't create tuned/__init__.py - let system tuned handle that
-# Just create admin/__init__.py
-cat > "$TUNED_ADMIN_DIR/__init__.py" << 'ADMININITEOF'
+# Download exceptions.py (required by admin.py)
+if ! download_file "${BASE_URL}/tuned/admin/exceptions.py" "$TUNED_ADMIN_DIR/exceptions.py" "exceptions.py"; then
+    warn "Could not download exceptions.py, creating minimal version"
+    cat > "$TUNED_ADMIN_DIR/exceptions.py" << 'EXCEPTEOF'
+class TunedAdminDBusException(Exception):
+    pass
+EXCEPTEOF
+fi
+
+# Download dbus_controller.py if it exists (may be used by admin.py)
+if ! download_file "${BASE_URL}/tuned/admin/dbus_controller.py" "$TUNED_ADMIN_DIR/dbus_controller.py" "dbus_controller.py"; then
+    warn "Could not download dbus_controller.py (optional)"
+fi
+
+# Try to download __init__.py from repo, or create minimal one
+if ! download_file "${BASE_URL}/tuned/admin/__init__.py" "$TUNED_ADMIN_DIR/__init__.py" "admin __init__.py"; then
+    info "Creating admin/__init__.py..."
+    cat > "$TUNED_ADMIN_DIR/__init__.py" << 'ADMININITEOF'
 from .admin import Admin
-__all__ = ["Admin"]
+try:
+    from .dbus_controller import DBusController
+    __all__ = ["Admin", "DBusController"]
+except ImportError:
+    __all__ = ["Admin"]
 ADMININITEOF
+fi
 
-success "Module structure created"
+success "Admin module structure complete"
 
 # Check if system tuned Python module is available
 info "Checking for system tuned module..."
