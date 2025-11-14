@@ -145,22 +145,24 @@ import os
 
 TUNED_LIB = '$TUNED_LIB'
 
-# Import system tuned first to get the base package
+# CRITICAL: Add our enhanced path FIRST before any imports
+sys.path.insert(0, TUNED_LIB)
+
+# Import system tuned to get base package
 import tuned
 
-# Now patch sys.modules to use our enhanced admin module
-sys.path.insert(0, TUNED_LIB)
-# Force reload of tuned.admin to get our version
-if 'tuned.admin' in sys.modules:
-    del sys.modules['tuned.admin']
-if 'tuned.admin.admin' in sys.modules:
-    del sys.modules['tuned.admin.admin']
+# Patch tuned package's __path__ to look in our directory FIRST
+# This ensures tuned.admin imports come from our enhanced version
+if hasattr(tuned, '__path__'):
+    # Insert our tuned directory at the beginning of the package path
+    tuned.__path__.insert(0, os.path.join(TUNED_LIB, 'tuned'))
 
-# Import our enhanced admin - this will now come from TUNED_LIB
-import tuned.admin.admin
-sys.modules['tuned.admin'] = tuned.admin
-sys.modules['tuned.admin.admin'] = tuned.admin.admin
+# Clear any cached admin modules
+for mod in list(sys.modules.keys()):
+    if mod.startswith('tuned.admin'):
+        del sys.modules[mod]
 
+# Now when tuned-adm.py imports tuned.admin, it will get our enhanced version
 # Execute the enhanced tuned-adm.py
 os.chdir(TUNED_LIB)
 exec(open(os.path.join(TUNED_LIB, 'tuned-adm.py')).read(), {'__name__': '__main__', '__file__': os.path.join(TUNED_LIB, 'tuned-adm.py')})
