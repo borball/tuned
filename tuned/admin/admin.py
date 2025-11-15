@@ -153,6 +153,12 @@ class Admin(object):
 		if not value or "${f:" not in value:
 			return value, True
 		
+		# Check for problematic nested functions - don't even try to expand them
+		# Nested functions with exec inside regex_search_ternary often have newlines that break parsing
+		if "${f:regex_search_ternary:${f:" in value or "${f:exec:" in value and value.count("${f:") > 1:
+			# Complex nested function - don't try to expand
+			return value, False
+		
 		try:
 			from tuned.profiles.functions import Repository as FunctionRepository
 			from tuned.profiles.functions.parser import Parser
@@ -254,7 +260,6 @@ class Admin(object):
 		# Track which profiles THIS profile actually includes (after successful loading)
 		actual_loaded = []
 		
-		# DEBUG: Removed - no longer needed
 		
 		# First, recursively load included profiles
 		for included in included_profiles:
