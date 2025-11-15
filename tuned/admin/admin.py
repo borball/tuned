@@ -474,10 +474,15 @@ class Admin(object):
 		
 		print()
 		print("-" * 80)
-		print("Note: Settings without '# from:' annotation are defined in the profile itself.")
-		print("      Settings with '# from:' annotation are inherited from parent profiles.")
-		print("      Values with '→' show the expanded result of variables/functions.")
-		print("      For example: ${isolated_cores} → 2-31,34-63")
+		print("Legend:")
+		print("  • No '# from:' = Setting defined in target profile itself")
+		print("  • '# from: profile' = Setting inherited from parent profile")
+		print("  • '→ value' = Expanded result of variables/functions")
+		print("  • '(policies X-Y)' = Grouped identical settings for multiple CPUs")
+		print("  • 'X-Y,...,Z' = Long CPU lists shortened for readability")
+		print()
+		print("Example: cmdline_realtime_nohzfull = +nohz_full=${isolated_cores}")
+		print("           → +nohz_full=2-31,34-63  # from: openshift-node-performance-...")
 		print("-" * 80)
 
 	def _print_profile_info(self, profile, profile_info, verbose=False):
