@@ -471,20 +471,38 @@ class Admin(object):
 					if 'ran-du-performance-architecture-common' in source_display:
 						source_display = source_display.replace('ran-du-performance-architecture-common', 'ran-du-arch-common')
 				
-				source_comment = "" if (source == profile_name or len(hierarchy) == 1) else "  # %s" % source_display
+				source_comment = source_display if (source != profile_name and len(hierarchy) > 1) else ""
+				
+				# Fixed-width columns for better alignment
+				# Column 1: option name (35 chars)
+				# Column 2: value (50 chars) or continuation
+				# Column 3: expansion (if any)
+				# Column 4: source comment
 				
 				if expanded_value:
-					# Has expansion - format compactly
-					if len(value) > 60 or len(display_expanded or "") > 60:
-						# Very long - use compact multi-line format
-						print("  %s = %s%s" % (option, value, source_comment))
-						print("    ↳ %s" % display_expanded)
+					# Has expansion
+					if len(value) > 50 or len(display_expanded or "") > 40:
+						# Very long - use multi-line format with fixed alignment
+						main_line = "  %-35s = %s" % (option, value)
+						if source_comment:
+							print("%-90s # %s" % (main_line, source_comment))
+						else:
+							print(main_line)
+						print("  %-35s   ↳ %s" % ("", display_expanded))
 					else:
-						# Short enough - single line
-						print("  %s = %s → %s%s" % (option, value, display_expanded, source_comment))
+						# Fits on one line - fixed width columns
+						main_part = "  %-35s = %-50s" % (option, value)
+						if source_comment:
+							print("%s → %-30s # %s" % (main_part, display_expanded, source_comment))
+						else:
+							print("%s → %s" % (main_part, display_expanded))
 				else:
-					# No expansion - standard format
-					print("  %s = %s%s" % (option, value, source_comment))
+					# No expansion - simple two-column format
+					main_part = "  %-35s = %s" % (option, value)
+					if source_comment:
+						print("%-90s # %s" % (main_part, source_comment))
+					else:
+						print(main_part)
 		
 		print()
 		print("-" * 80)
