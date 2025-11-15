@@ -223,7 +223,29 @@ class Admin(object):
 		if consts.PLUGIN_MAIN_UNIT_NAME in config.sections():
 			if "include" in config.options(consts.PLUGIN_MAIN_UNIT_NAME):
 				include_value = config.get(consts.PLUGIN_MAIN_UNIT_NAME, "include", raw=True)
-				included_profiles_raw = re.split(r"\s*[,;]\s*", include_value)
+				# Don't split on ; or , that are inside ${}
+				# Use a more careful split that respects ${...} boundaries
+				parts = []
+				current = ""
+				depth = 0
+				for char in include_value:
+					if char == '$' and len(current) > 0 and current[-1] == '$':
+						# Escaped $
+						current += char
+					elif depth == 0 and char in ',;':
+						# Split point - not inside ${}
+						if current.strip():
+							parts.append(current.strip())
+						current = ""
+					else:
+						if char == '{' and len(current) > 0 and current[-1] == '$':
+							depth += 1
+						elif char == '}' and depth > 0:
+							depth -= 1
+						current += char
+				if current.strip():
+					parts.append(current.strip())
+				included_profiles_raw = parts
 				# ALWAYS try to expand functions - use tuned's built-in expansion
 				for inc in included_profiles_raw:
 					if "${f:" not in inc:
