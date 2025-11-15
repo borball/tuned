@@ -481,7 +481,7 @@ class Admin(object):
 					# Has expansion
 					if len(value) > 60 or len(display_expanded or "") > 50:
 						# Very long - multi-line format
-						line = "  %s = %s" % (option, value)
+						line = "%s = %s" % (option, value)
 						if source_comment:
 							if len(line) > COMMENT_COLUMN - 10:
 								# Too long for same-line comment
@@ -491,10 +491,10 @@ class Admin(object):
 								print("%-*s # %s" % (COMMENT_COLUMN, line, source_comment))
 						else:
 							print(line)
-						print("    ↳ %s" % display_expanded)
+						print("  ↳ %s" % display_expanded)
 					else:
 						# Single line with expansion
-						line = "  %s = %s → %s" % (option, value, display_expanded)
+						line = "%s = %s → %s" % (option, value, display_expanded)
 						if source_comment:
 							if len(line) > COMMENT_COLUMN - 10:
 								# Too long for same-line comment
@@ -506,7 +506,7 @@ class Admin(object):
 							print(line)
 				else:
 					# No expansion - simple format
-					line = "  %s = %s" % (option, value)
+					line = "%s = %s" % (option, value)
 					if source_comment:
 						if len(line) > COMMENT_COLUMN - 10:
 							# Too long for same-line comment
