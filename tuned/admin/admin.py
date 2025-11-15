@@ -180,13 +180,16 @@ class Admin(object):
 			# Don't log the error - it's expected for complex expressions
 			return value, False
 
-	def _load_profile_hierarchy(self, profile_name, processed=None, level=0):
+	def _load_profile_hierarchy(self, profile_name, processed=None, level=0, include_map=None):
 		"""
 		Recursively load profile hierarchy with tracking.
-		Returns a list of tuples: (profile_name, config_dict, level, parent_name)
+		Returns a list of tuples: (profile_name, config_dict, level, actual_includes_list)
+		include_map tracks which profiles each profile actually loaded
 		"""
 		if processed is None:
 			processed = set()
+		if include_map is None:
+			include_map = {}
 		
 		import re
 		from tuned.utils.config_parser import ConfigParser, Error
@@ -221,10 +224,17 @@ class Admin(object):
 					expanded, success = self._expand_functions_simple(inc)
 					included_profiles.append(expanded if success else inc)
 		
+		# Track which profiles THIS profile actually includes
+		actual_loaded = []
+		
 		# First, recursively load included profiles
 		for included in included_profiles:
 			if included and included not in processed:
-				hierarchy.extend(self._load_profile_hierarchy(included, processed, level + 1))
+				hierarchy.extend(self._load_profile_hierarchy(included, processed, level + 1, include_map))
+				actual_loaded.append(included)
+		
+		# Store the actual includes for this profile
+		include_map[profile_name] = actual_loaded
 		
 		# Convert config to dict
 		config_dict = {}
@@ -234,14 +244,8 @@ class Admin(object):
 				for option in config.options(section):
 					config_dict[section][option] = config.get(section, option, raw=True)
 		
-		# Add this profile to hierarchy
-		# Show includes - display as-is since complex functions may not expand cleanly
-		if included_profiles_raw:
-			parent_info = " (includes: %s)" % ", ".join(included_profiles_raw)
-		else:
-			parent_info = ""
-		
-		hierarchy.append((profile_name, config_dict, level, parent_info))
+		# Add this profile to hierarchy with actual includes list
+		hierarchy.append((profile_name, config_dict, level, actual_loaded))
 		
 		return hierarchy
 
@@ -259,22 +263,27 @@ class Admin(object):
 		print("Profile Hierarchy:")
 		print("-" * 80)
 		
-		# Print hierarchy tree
-		# Find the base profile (lowest level in hierarchy)
+		# Print hierarchy tree with actual includes
+		# The 4th element in each tuple is now the actual_loaded list
 		max_level = max(level for _, _, level, _ in hierarchy)
 		
-		for prof_name, config, level, parent_info in hierarchy:
+		for prof_name, config, level, actual_includes in hierarchy:
 			indent = "  " * (max_level - level)
+			
+			# Determine marker
 			if prof_name == profile_name:
-				# This is the target profile being queried
-				marker = " (target profile)"
+				marker = " (target)"
 			elif level == 0:
-				# This is a base/parent profile
 				marker = " (base)"
 			else:
-				# This is an intermediate included profile
-				marker = " (included)"
-			print("%s└─ %s%s%s" % (indent, prof_name, marker, parent_info))
+				marker = ""
+			
+			# Show actual includes that were loaded (post-function-evaluation)
+			includes_display = ""
+			if actual_includes:
+				includes_display = " → includes: [%s]" % ", ".join(actual_includes)
+			
+			print("%s└─ %s%s%s" % (indent, prof_name, marker, includes_display))
 		
 		print()
 		print("Merged Settings by Section:")
