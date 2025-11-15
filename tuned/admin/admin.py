@@ -243,7 +243,6 @@ class Admin(object):
 		# Track which profiles THIS profile actually includes (after successful loading)
 		actual_loaded = []
 		
-		
 		# First, recursively load included profiles
 		for included in included_profiles:
 			if included and included not in processed:
