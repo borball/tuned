@@ -387,46 +387,8 @@ class Admin(object):
 			print()
 			print("[%s]" % section)
 			
-			# Check if this section has many similar options (like scaling_max_freq for all CPUs)
-			options = sorted(merged_settings[section].keys())
-			grouped_options = {}
-			other_options = []
-			
-			for option in options:
-				# Check for repetitive pattern options (e.g., policy*/scaling_max_freq)
-				if '/sys/devices/system/cpu/cpufreq/policy' in option and '/scaling_max_freq' in option:
-					value, source = merged_settings[section][option]
-					key = (value, source)  # Group by value and source
-					if key not in grouped_options:
-						grouped_options[key] = []
-					grouped_options[key].append(option)
-				else:
-					other_options.append(option)
-			
-			# Print grouped options first (if any)
-			for (value, source), opts in sorted(grouped_options.items()):
-				if len(opts) > 5:
-					# Many similar options - show summary
-					policies = []
-					for opt in opts:
-						try:
-							policy_num = opt.split('policy')[1].split('/')[0]
-							policies.append(int(policy_num))
-						except:
-							pass
-					if policies:
-						policies.sort()
-						# Use full source name
-						source_comment = "" if source == profile_name else "  # %s" % source
-						print("  (CPU policies %d-%d) scaling_max_freq = %s%s  [%d policies]" % (policies[0], policies[-1], value, source_comment, len(opts)))
-					else:
-						other_options.extend(opts)
-				else:
-					# Few options - show individually
-					other_options.extend(opts)
-			
-			# Print individual options
-			for option in sorted(other_options):
+			# Print all options individually (no grouping)
+			for option in sorted(merged_settings[section].keys()):
 				value, source = merged_settings[section][option]
 				
 				# Try to expand variables and functions in the value for display
