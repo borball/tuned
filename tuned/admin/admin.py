@@ -216,18 +216,19 @@ class Admin(object):
 				included_profiles_raw = re.split(r"\s*[,;]\s*", include_value)
 				# ALWAYS try to expand functions - use tuned's built-in expansion
 				for inc in included_profiles_raw:
-					# Try multiple expansion methods
-					expanded, success = self._expand_functions_simple(inc)
-					if success and expanded and expanded != inc:
-						# Expansion worked - use the expanded name
-						included_profiles.append(expanded)
-					elif "${f:" in inc:
-						# Has functions but expansion failed - try without our wrapper
-						# Just use the raw string and let profile loading skip if it doesn't exist
-						included_profiles.append(inc)
-					else:
+					if "${f:" not in inc:
 						# No functions - use as-is
 						included_profiles.append(inc)
+					else:
+						# Has functions - MUST expand before loading
+						expanded, success = self._expand_functions_simple(inc)
+						if expanded and expanded != inc:
+							# Expansion produced something - use it
+							included_profiles.append(expanded)
+						else:
+							# Expansion failed or produced same result
+							# Don't add to list - profile can't be loaded with raw function syntax
+							pass
 		
 		# Track which profiles THIS profile actually includes (after successful loading)
 		actual_loaded = []
