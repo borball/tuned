@@ -156,10 +156,18 @@ class Admin(object):
 		try:
 			from tuned.profiles.functions import Repository as FunctionRepository
 			from tuned.profiles.functions.parser import Parser
+			import logging
+			
+			# Suppress ALL logging during expansion (including ERROR level)
+			# This prevents parser errors from being displayed for complex nested functions
+			logging.disable(logging.CRITICAL)
 			
 			repo = FunctionRepository()
 			parser = Parser(repo)
 			expanded = parser.expand(value)
+			
+			# Re-enable logging
+			logging.disable(logging.NOTSET)
 			
 			# Check if expansion produced something different and valid
 			if expanded and expanded != value and "${f:" not in expanded:
@@ -172,6 +180,8 @@ class Admin(object):
 				# No change - return original
 				return value, False
 		except Exception as e:
+			# Re-enable logging if exception occurred
+			logging.disable(logging.NOTSET)
 			# If expansion fails (nested functions, errors, etc.), return original
 			return value, False
 
