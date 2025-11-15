@@ -153,12 +153,7 @@ class Admin(object):
 		if not value or "${f:" not in value:
 			return value, True
 		
-		# Check for problematic nested functions - don't even try to expand them
-		# Nested functions with exec inside regex_search_ternary often have newlines that break parsing
-		if "${f:regex_search_ternary:${f:" in value or ("${f:exec:" in value and value.count("${f:") > 1):
-			# Complex nested function - don't try to expand
-			return value, False
-		
+		# Always try to expand - Variables.expand() can handle nested functions
 		try:
 			# Use system tuned's profiles module for expansion
 			# Import from system path, not our shadowed version
@@ -255,8 +250,17 @@ class Admin(object):
 						# Has functions - MUST expand before loading
 						expanded, success = self._expand_functions_simple(inc)
 						if expanded and expanded != inc:
-							# Expansion produced something - use it
-							included_profiles.append(expanded)
+							# Expansion worked! But the result might contain comma-separated profiles
+							# Split again if needed (function might expand to multiple profiles)
+							if ',' in expanded or ';' in expanded:
+								# Re-split the expanded result
+								expanded_parts = re.split(r'\s*[,;]\s*', expanded)
+								for part in expanded_parts:
+									if part.strip():
+										included_profiles.append(part.strip())
+							else:
+								# Single profile - add as-is
+								included_profiles.append(expanded)
 						else:
 							# Expansion failed or produced same result
 							# Don't add to list - profile can't be loaded with raw function syntax
