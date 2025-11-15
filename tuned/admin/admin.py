@@ -148,6 +148,7 @@ class Admin(object):
 		"""
 		Try to expand tuned functions in a string for display purposes.
 		Returns (expanded_value, success) tuple.
+		Gracefully handles errors from complex/nested functions.
 		"""
 		if not value or "${f:" not in value:
 			return value, True
@@ -155,12 +156,28 @@ class Admin(object):
 		try:
 			from tuned.profiles.functions import Repository as FunctionRepository
 			from tuned.profiles.functions.parser import Parser
+			import tuned.logs
+			
+			# Temporarily suppress parser errors during expansion attempts
+			log = tuned.logs.get()
+			original_level = log.level
+			log.setLevel(100)  # Suppress all logs temporarily
+			
 			repo = FunctionRepository()
 			parser = Parser(repo)
 			expanded = parser.expand(value)
-			return expanded, True
+			
+			# Restore log level
+			log.setLevel(original_level)
+			
+			# Check if expansion produced something different and valid
+			if expanded and expanded != value:
+				return expanded, True
+			else:
+				return value, False
 		except Exception as e:
-			# If expansion fails, return original with note
+			# If expansion fails (nested functions, errors, etc.), return original
+			# Don't log the error - it's expected for complex expressions
 			return value, False
 
 	def _load_profile_hierarchy(self, profile_name, processed=None, level=0):
@@ -218,19 +235,9 @@ class Admin(object):
 					config_dict[section][option] = config.get(section, option, raw=True)
 		
 		# Add this profile to hierarchy
-		# Show includes - if functions were expanded, show both raw and evaluated
-		parent_info_parts = []
-		for i, raw_inc in enumerate(included_profiles_raw):
-			if i < len(included_profiles):
-				exp_inc = included_profiles[i]
-				if exp_inc != raw_inc and "${f:" in raw_inc:
-					# Function was expanded - show evaluated value with note
-					parent_info_parts.append("%s" % exp_inc)
-				else:
-					parent_info_parts.append(raw_inc)
-		
-		if parent_info_parts:
-			parent_info = " (includes: %s)" % ", ".join(parent_info_parts)
+		# Show includes - display as-is since complex functions may not expand cleanly
+		if included_profiles_raw:
+			parent_info = " (includes: %s)" % ", ".join(included_profiles_raw)
 		else:
 			parent_info = ""
 		
