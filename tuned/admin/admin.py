@@ -416,13 +416,8 @@ class Admin(object):
 							pass
 					if policies:
 						policies.sort()
-						# Shorten source for grouped items too
-						source_display = source
-						if len(source) > 40:
-							if 'openshift-node-performance' in source:
-								source_display = source.replace('openshift-node-performance-openshift-node-performance-profile', 'ocp-node-perf')
-								source_display = source_display.replace('openshift-node-performance-', 'ocp-node-perf-')
-						source_comment = "" if source == profile_name else "  # %s" % source_display
+						# Use full source name
+						source_comment = "" if source == profile_name else "  # %s" % source
 						print("  (CPU policies %d-%d) scaling_max_freq = %s%s  [%d policies]" % (policies[0], policies[-1], value, source_comment, len(opts)))
 					else:
 						other_options.extend(opts)
@@ -461,17 +456,8 @@ class Admin(object):
 							if len(parts) > 10:
 								display_expanded = ','.join(parts[:3]) + ',...,' + ','.join(parts[-2:])
 				
-				# Shorten source profile names for readability
-				source_display = source
-				if len(source) > 40:
-					# Shorten long profile names
-					if 'openshift-node-performance' in source:
-						source_display = source.replace('openshift-node-performance-openshift-node-performance-profile', 'ocp-node-perf')
-						source_display = source_display.replace('openshift-node-performance-', 'ocp-node-perf-')
-					if 'ran-du-performance-architecture-common' in source_display:
-						source_display = source_display.replace('ran-du-performance-architecture-common', 'ran-du-arch-common')
-				
-				source_comment = source_display if (source != profile_name and len(hierarchy) > 1) else ""
+				# Use full profile names in comments
+				source_comment = source if (source != profile_name and len(hierarchy) > 1) else ""
 				
 				# Align comments at fixed position (column 120)
 				# If line is too long, put comment on next line
