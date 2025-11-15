@@ -144,6 +144,25 @@ class Admin(object):
 		profile_name = self._cmd.get_post_loaded_profile()
 		return profile_name
 
+	def _expand_functions_simple(self, value):
+		"""
+		Try to expand tuned functions in a string for display purposes.
+		Returns (expanded_value, success) tuple.
+		"""
+		if not value or "${f:" not in value:
+			return value, True
+		
+		try:
+			from tuned.profiles.functions import Repository as FunctionRepository
+			from tuned.profiles.functions.parser import Parser
+			repo = FunctionRepository()
+			parser = Parser(repo)
+			expanded = parser.expand(value)
+			return expanded, True
+		except Exception as e:
+			# If expansion fails, return original with note
+			return value, False
+
 	def _load_profile_hierarchy(self, profile_name, processed=None, level=0):
 		"""
 		Recursively load profile hierarchy with tracking.
@@ -175,10 +194,15 @@ class Admin(object):
 		
 		# Check for included profiles
 		included_profiles = []
+		included_profiles_raw = []
 		if consts.PLUGIN_MAIN_UNIT_NAME in config.sections():
 			if "include" in config.options(consts.PLUGIN_MAIN_UNIT_NAME):
 				include_value = config.get(consts.PLUGIN_MAIN_UNIT_NAME, "include", raw=True)
-				included_profiles = re.split(r"\s*[,;]\s*", include_value)
+				included_profiles_raw = re.split(r"\s*[,;]\s*", include_value)
+				# Try to expand functions in includes for display
+				for inc in included_profiles_raw:
+					expanded, success = self._expand_functions_simple(inc)
+					included_profiles.append(expanded if success else inc)
 		
 		# First, recursively load included profiles
 		for included in included_profiles:
@@ -194,7 +218,22 @@ class Admin(object):
 					config_dict[section][option] = config.get(section, option, raw=True)
 		
 		# Add this profile to hierarchy
-		parent_info = " (includes: %s)" % ", ".join(included_profiles) if included_profiles else ""
+		# Show includes - if functions were expanded, show both raw and evaluated
+		parent_info_parts = []
+		for i, raw_inc in enumerate(included_profiles_raw):
+			if i < len(included_profiles):
+				exp_inc = included_profiles[i]
+				if exp_inc != raw_inc and "${f:" in raw_inc:
+					# Function was expanded - show evaluated value with note
+					parent_info_parts.append("%s" % exp_inc)
+				else:
+					parent_info_parts.append(raw_inc)
+		
+		if parent_info_parts:
+			parent_info = " (includes: %s)" % ", ".join(parent_info_parts)
+		else:
+			parent_info = ""
+		
 		hierarchy.append((profile_name, config_dict, level, parent_info))
 		
 		return hierarchy
@@ -266,6 +305,7 @@ class Admin(object):
 		print("-" * 80)
 		print("Note: Settings without '# from:' annotation are defined in the profile itself.")
 		print("      Settings with '# from:' annotation are inherited from parent profiles.")
+		print("      Function calls ${f:...} in includes are evaluated at runtime.")
 		print("-" * 80)
 
 	def _print_profile_info(self, profile, profile_info, verbose=False):
