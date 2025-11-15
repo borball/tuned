@@ -387,7 +387,46 @@ class Admin(object):
 			print()
 			print("[%s]" % section)
 			
-			for option in sorted(merged_settings[section].keys()):
+			# Check if this section has many similar options (like scaling_max_freq for all CPUs)
+			options = sorted(merged_settings[section].keys())
+			grouped_options = {}
+			other_options = []
+			
+			for option in options:
+				# Check for repetitive pattern options (e.g., policy*/scaling_max_freq)
+				if '/sys/devices/system/cpu/cpufreq/policy' in option and '/scaling_max_freq' in option:
+					value, source = merged_settings[section][option]
+					key = (value, source)  # Group by value and source
+					if key not in grouped_options:
+						grouped_options[key] = []
+					grouped_options[key].append(option)
+				else:
+					other_options.append(option)
+			
+			# Print grouped options first (if any)
+			for (value, source), opts in sorted(grouped_options.items()):
+				if len(opts) > 5:
+					# Many similar options - show summary
+					policies = []
+					for opt in opts:
+						try:
+							policy_num = opt.split('policy')[1].split('/')[0]
+							policies.append(int(policy_num))
+						except:
+							pass
+					if policies:
+						policies.sort()
+						source_comment = "" if source == profile_name else "  # from: %s" % source
+						print("  %-30s = %s%s" % (f"(policies {policies[0]}-{policies[-1]}) scaling_max_freq", value, source_comment))
+						print("  %-30s   (%d CPU policies)" % ("", len(opts)))
+					else:
+						other_options.extend(opts)
+				else:
+					# Few options - show individually
+					other_options.extend(opts)
+			
+			# Print individual options
+			for option in sorted(other_options):
 				value, source = merged_settings[section][option]
 				
 				# Try to expand variables and functions in the value for display
@@ -400,19 +439,38 @@ class Admin(object):
 					except:
 						expanded_value = None
 				
+				# Shorten very long CPU lists for readability
+				display_expanded = expanded_value
+				if expanded_value and len(expanded_value) > 80:
+					# Check if it's a CPU list
+					if ',' in expanded_value:
+						parts = [p.strip() for p in expanded_value.split(',')]
+						# Check if all parts are numbers
+						try:
+							nums = [int(p) for p in parts if p]
+							if len(nums) > 10:
+								# Show as range: 0-5,...,62-63
+								display_expanded = f"{nums[0]}-{nums[4]},...,{nums[-2]}-{nums[-1]}"
+						except ValueError:
+							# Not all numbers, use original shortening
+							if len(parts) > 10:
+								display_expanded = ','.join(parts[:3]) + ',...,' + ','.join(parts[-2:])
+				
 				# Format the output
-				if source == profile_name or (len(hierarchy) == 1):
-					# Setting is from the target profile itself
-					if expanded_value:
-						print("  %-30s = %-40s  → %s" % (option, value, expanded_value))
+				source_comment = "" if (source == profile_name or len(hierarchy) == 1) else "  # from: %s" % source
+				
+				if expanded_value:
+					# Has expansion - check if we should put it on a new line
+					if len(value) + len(display_expanded or "") > 80:
+						# Long line - put expansion on next line with indentation
+						print("  %-30s = %s%s" % (option, value, source_comment))
+						print("  %-30s   → %s" % ("", display_expanded))
 					else:
-						print("  %-30s = %s" % (option, value))
+						# Short enough - keep on one line
+						print("  %-30s = %s  → %s%s" % (option, value, display_expanded, source_comment))
 				else:
-					# Setting is inherited from a parent profile
-					if expanded_value:
-						print("  %-30s = %-40s  → %s  # from: %s" % (option, value, expanded_value, source))
-					else:
-						print("  %-30s = %-40s  # from: %s" % (option, value, source))
+					# No expansion
+					print("  %-30s = %s%s" % (option, value, source_comment))
 		
 		print()
 		print("-" * 80)
