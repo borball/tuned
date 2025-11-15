@@ -156,11 +156,17 @@ class Admin(object):
 		try:
 			from tuned.profiles.functions import Repository as FunctionRepository
 			from tuned.profiles.functions.parser import Parser
+			import tuned.logs
 			import logging
 			
-			# Suppress ALL logging during expansion (including ERROR level)
-			# This prevents parser errors from being displayed for complex nested functions
+			# Suppress both Python logging and tuned's custom logging
+			# to prevent parser errors from showing for complex nested functions
 			logging.disable(logging.CRITICAL)
+			
+			# Also suppress tuned's custom logger
+			tuned_log = tuned.logs.get()
+			original_tuned_level = tuned_log.level
+			tuned_log.setLevel(logging.CRITICAL + 10)
 			
 			repo = FunctionRepository()
 			parser = Parser(repo)
@@ -168,6 +174,7 @@ class Admin(object):
 			
 			# Re-enable logging
 			logging.disable(logging.NOTSET)
+			tuned_log.setLevel(original_tuned_level)
 			
 			# Check if expansion produced something different and valid
 			if expanded and expanded != value and "${f:" not in expanded:
@@ -181,7 +188,11 @@ class Admin(object):
 				return value, False
 		except Exception as e:
 			# Re-enable logging if exception occurred
-			logging.disable(logging.NOTSET)
+			try:
+				logging.disable(logging.NOTSET)
+				tuned_log.setLevel(original_tuned_level)
+			except:
+				pass
 			# If expansion fails (nested functions, errors, etc.), return original
 			return value, False
 
@@ -243,10 +254,7 @@ class Admin(object):
 		# Track which profiles THIS profile actually includes (after successful loading)
 		actual_loaded = []
 		
-		# DEBUG: Print what we're trying to load
-		if included_profiles and profile_name in ['ran-du-performance-architecture-common', 'openshift-node-performance-openshift-node-performance-profile']:
-			import sys
-			print(f"DEBUG: {profile_name} trying to load: {included_profiles}", file=sys.stderr)
+		# DEBUG: Removed - no longer needed
 		
 		# First, recursively load included profiles
 		for included in included_profiles:
