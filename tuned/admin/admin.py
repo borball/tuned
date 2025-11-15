@@ -361,6 +361,27 @@ class Admin(object):
 					# Track the source profile for this setting
 					merged_settings[section][option] = (value, prof_name)
 		
+		# Create a Variables instance for expanding values
+		try:
+			import tuned.profiles.variables
+			variables = tuned.profiles.variables.Variables()
+			# Try to load variables from all profiles in hierarchy
+			var_count = 0
+			for prof_name, config, level, actual_includes in hierarchy:
+				if consts.PLUGIN_VARIABLES_UNIT_NAME in config:
+					for var_name, var_value in config[consts.PLUGIN_VARIABLES_UNIT_NAME].items():
+						# Skip assertion variables and includes - they cause errors during expansion
+						if not var_name.startswith('assert') and var_name != 'include':
+							try:
+								variables.add_variable(var_name, var_value)
+								var_count += 1
+							except:
+								# Skip variables that cause errors
+								pass
+			# Variables loaded successfully
+		except Exception as e:
+			variables = None
+		
 		# Print merged settings grouped by section
 		for section in sorted(merged_settings.keys()):
 			print()
@@ -369,19 +390,36 @@ class Admin(object):
 			for option in sorted(merged_settings[section].keys()):
 				value, source = merged_settings[section][option]
 				
+				# Try to expand variables and functions in the value for display
+				expanded_value = None
+				if variables and value and ("${" in value or "${f:" in value):
+					try:
+						expanded_value = variables.expand(str(value))
+						if expanded_value == value:
+							expanded_value = None  # No change, don't show duplicate
+					except:
+						expanded_value = None
+				
 				# Format the output
 				if source == profile_name or (len(hierarchy) == 1):
 					# Setting is from the target profile itself
-					print("  %-30s = %s" % (option, value))
+					if expanded_value:
+						print("  %-30s = %-40s  → %s" % (option, value, expanded_value))
+					else:
+						print("  %-30s = %s" % (option, value))
 				else:
 					# Setting is inherited from a parent profile
-					print("  %-30s = %-40s  # from: %s" % (option, value, source))
+					if expanded_value:
+						print("  %-30s = %-40s  → %s  # from: %s" % (option, value, expanded_value, source))
+					else:
+						print("  %-30s = %-40s  # from: %s" % (option, value, source))
 		
 		print()
 		print("-" * 80)
 		print("Note: Settings without '# from:' annotation are defined in the profile itself.")
 		print("      Settings with '# from:' annotation are inherited from parent profiles.")
-		print("      Function calls ${f:...} in includes are evaluated at runtime.")
+		print("      Values with '→' show the expanded result of variables/functions.")
+		print("      For example: ${isolated_cores} → 2-31,34-63")
 		print("-" * 80)
 
 	def _print_profile_info(self, profile, profile_info, verbose=False):
