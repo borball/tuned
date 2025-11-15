@@ -416,9 +416,14 @@ class Admin(object):
 							pass
 					if policies:
 						policies.sort()
-						source_comment = "" if source == profile_name else "  # from: %s" % source
-						print("  %-30s = %s%s" % (f"(policies {policies[0]}-{policies[-1]}) scaling_max_freq", value, source_comment))
-						print("  %-30s   (%d CPU policies)" % ("", len(opts)))
+						# Shorten source for grouped items too
+						source_display = source
+						if len(source) > 40:
+							if 'openshift-node-performance' in source:
+								source_display = source.replace('openshift-node-performance-openshift-node-performance-profile', 'ocp-node-perf')
+								source_display = source_display.replace('openshift-node-performance-', 'ocp-node-perf-')
+						source_comment = "" if source == profile_name else "  # %s" % source_display
+						print("  (CPU policies %d-%d) scaling_max_freq = %s%s  [%d policies]" % (policies[0], policies[-1], value, source_comment, len(opts)))
 					else:
 						other_options.extend(opts)
 				else:
@@ -456,21 +461,30 @@ class Admin(object):
 							if len(parts) > 10:
 								display_expanded = ','.join(parts[:3]) + ',...,' + ','.join(parts[-2:])
 				
-				# Format the output
-				source_comment = "" if (source == profile_name or len(hierarchy) == 1) else "  # from: %s" % source
+				# Shorten source profile names for readability
+				source_display = source
+				if len(source) > 40:
+					# Shorten long profile names
+					if 'openshift-node-performance' in source:
+						source_display = source.replace('openshift-node-performance-openshift-node-performance-profile', 'ocp-node-perf')
+						source_display = source_display.replace('openshift-node-performance-', 'ocp-node-perf-')
+					if 'ran-du-performance-architecture-common' in source_display:
+						source_display = source_display.replace('ran-du-performance-architecture-common', 'ran-du-arch-common')
+				
+				source_comment = "" if (source == profile_name or len(hierarchy) == 1) else "  # %s" % source_display
 				
 				if expanded_value:
-					# Has expansion - check if we should put it on a new line
-					if len(value) + len(display_expanded or "") > 80:
-						# Long line - put expansion on next line with indentation
-						print("  %-30s = %s%s" % (option, value, source_comment))
-						print("  %-30s   → %s" % ("", display_expanded))
+					# Has expansion - format compactly
+					if len(value) > 60 or len(display_expanded or "") > 60:
+						# Very long - use compact multi-line format
+						print("  %s = %s%s" % (option, value, source_comment))
+						print("    ↳ %s" % display_expanded)
 					else:
-						# Short enough - keep on one line
-						print("  %-30s = %s  → %s%s" % (option, value, display_expanded, source_comment))
+						# Short enough - single line
+						print("  %s = %s → %s%s" % (option, value, display_expanded, source_comment))
 				else:
-					# No expansion
-					print("  %-30s = %s%s" % (option, value, source_comment))
+					# No expansion - standard format
+					print("  %s = %s%s" % (option, value, source_comment))
 		
 		print()
 		print("-" * 80)
