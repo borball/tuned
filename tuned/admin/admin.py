@@ -232,6 +232,11 @@ class Admin(object):
 		# Track which profiles THIS profile actually includes (after successful loading)
 		actual_loaded = []
 		
+		# DEBUG: Print what we're trying to load
+		if included_profiles and profile_name in ['ran-du-performance-architecture-common', 'openshift-node-performance-openshift-node-performance-profile']:
+			import sys
+			print(f"DEBUG: {profile_name} trying to load: {included_profiles}", file=sys.stderr)
+		
 		# First, recursively load included profiles
 		for included in included_profiles:
 			if included and included not in processed:
@@ -248,6 +253,13 @@ class Admin(object):
 						if new_level == level + 1:
 							# This is a direct child profile that was successfully loaded
 							actual_loaded.append(new_prof)
+				else:
+					# Profile couldn't be loaded - might be conditional/optional
+					# Check if it starts with '-' (optional profile marker)
+					if not included.startswith('-'):
+						# Not optional - add to actual_loaded anyway to show it was attempted
+						# (but it will show in hierarchy only if it actually loaded)
+						pass
 		
 		# Store the actual includes for this profile
 		include_map[profile_name] = actual_loaded
