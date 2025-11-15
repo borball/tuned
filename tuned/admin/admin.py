@@ -156,28 +156,23 @@ class Admin(object):
 		try:
 			from tuned.profiles.functions import Repository as FunctionRepository
 			from tuned.profiles.functions.parser import Parser
-			import tuned.logs
-			
-			# Temporarily suppress parser errors during expansion attempts
-			log = tuned.logs.get()
-			original_level = log.level
-			log.setLevel(100)  # Suppress all logs temporarily
 			
 			repo = FunctionRepository()
 			parser = Parser(repo)
 			expanded = parser.expand(value)
 			
-			# Restore log level
-			log.setLevel(original_level)
-			
 			# Check if expansion produced something different and valid
-			if expanded and expanded != value:
+			if expanded and expanded != value and "${f:" not in expanded:
+				# Successfully expanded all functions
+				return expanded, True
+			elif expanded != value:
+				# Partially expanded (some functions remain)
 				return expanded, True
 			else:
+				# No change - return original
 				return value, False
 		except Exception as e:
 			# If expansion fails (nested functions, errors, etc.), return original
-			# Don't log the error - it's expected for complex expressions
 			return value, False
 
 	def _load_profile_hierarchy(self, profile_name, processed=None, level=0, include_map=None):
@@ -219,10 +214,20 @@ class Admin(object):
 			if "include" in config.options(consts.PLUGIN_MAIN_UNIT_NAME):
 				include_value = config.get(consts.PLUGIN_MAIN_UNIT_NAME, "include", raw=True)
 				included_profiles_raw = re.split(r"\s*[,;]\s*", include_value)
-				# Try to expand functions in includes for display
+				# ALWAYS try to expand functions - use tuned's built-in expansion
 				for inc in included_profiles_raw:
+					# Try multiple expansion methods
 					expanded, success = self._expand_functions_simple(inc)
-					included_profiles.append(expanded if success else inc)
+					if success and expanded and expanded != inc:
+						# Expansion worked - use the expanded name
+						included_profiles.append(expanded)
+					elif "${f:" in inc:
+						# Has functions but expansion failed - try without our wrapper
+						# Just use the raw string and let profile loading skip if it doesn't exist
+						included_profiles.append(inc)
+					else:
+						# No functions - use as-is
+						included_profiles.append(inc)
 		
 		# Track which profiles THIS profile actually includes (after successful loading)
 		actual_loaded = []
