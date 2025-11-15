@@ -155,32 +155,21 @@ class Admin(object):
 		
 		# Check for problematic nested functions - don't even try to expand them
 		# Nested functions with exec inside regex_search_ternary often have newlines that break parsing
-		if "${f:regex_search_ternary:${f:" in value or "${f:exec:" in value and value.count("${f:") > 1:
+		if "${f:regex_search_ternary:${f:" in value or ("${f:exec:" in value and value.count("${f:") > 1):
 			# Complex nested function - don't try to expand
 			return value, False
 		
 		try:
-			from tuned.profiles.functions import Repository as FunctionRepository
-			from tuned.profiles.functions.parser import Parser
-			import tuned.logs
-			import logging
+			# Use system tuned's profiles module for expansion
+			# Import from system path, not our shadowed version
+			import tuned.profiles.variables
+			import tuned.profiles.functions
 			
-			# Suppress both Python logging and tuned's custom logging
-			# to prevent parser errors from showing for complex nested functions
-			logging.disable(logging.CRITICAL)
+			# Create variables instance which has expansion capability
+			variables = tuned.profiles.variables.Variables()
 			
-			# Also suppress tuned's custom logger
-			tuned_log = tuned.logs.get()
-			original_tuned_level = tuned_log.level
-			tuned_log.setLevel(logging.CRITICAL + 10)
-			
-			repo = FunctionRepository()
-			parser = Parser(repo)
-			expanded = parser.expand(value)
-			
-			# Re-enable logging
-			logging.disable(logging.NOTSET)
-			tuned_log.setLevel(original_tuned_level)
+			# Expand using the variables expand method (includes functions)
+			expanded = variables.expand(value)
 			
 			# Check if expansion produced something different and valid
 			if expanded and expanded != value and "${f:" not in expanded:
@@ -193,12 +182,6 @@ class Admin(object):
 				# No change - return original
 				return value, False
 		except Exception as e:
-			# Re-enable logging if exception occurred
-			try:
-				logging.disable(logging.NOTSET)
-				tuned_log.setLevel(original_tuned_level)
-			except:
-				pass
 			# If expansion fails (nested functions, errors, etc.), return original
 			return value, False
 
