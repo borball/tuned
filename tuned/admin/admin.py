@@ -473,30 +473,31 @@ class Admin(object):
 				
 				source_comment = source_display if (source != profile_name and len(hierarchy) > 1) else ""
 				
-				# Fixed-width format with aligned comments
+				# Align comments at fixed position (column 100) without fixed-width key=value
 				if expanded_value:
 					# Has expansion
 					if len(value) > 60 or len(display_expanded or "") > 50:
 						# Very long - multi-line format
+						line = "  %s = %s" % (option, value)
 						if source_comment:
-							print("  %-40s = %-60s # %s" % (option, value, source_comment))
-							print("  %-40s   ↳ %s" % ("", display_expanded))
+							print("%-100s # %s" % (line, source_comment))
 						else:
-							print("  %s = %s" % (option, value))
-							print("  %-40s   ↳ %s" % ("", display_expanded))
+							print(line)
+						print("    ↳ %s" % display_expanded)
 					else:
 						# Single line with expansion
+						line = "  %s = %s → %s" % (option, value, display_expanded)
 						if source_comment:
-							combined = "%s → %s" % (value, display_expanded)
-							print("  %-40s = %-60s # %s" % (option, combined, source_comment))
+							print("%-100s # %s" % (line, source_comment))
 						else:
-							print("  %s = %s → %s" % (option, value, display_expanded))
+							print(line)
 				else:
 					# No expansion - simple format
+					line = "  %s = %s" % (option, value)
 					if source_comment:
-						print("  %-40s = %-60s # %s" % (option, value, source_comment))
+						print("%-100s # %s" % (line, source_comment))
 					else:
-						print("  %s = %s" % (option, value))
+						print(line)
 		
 		print()
 		print("-" * 80)
