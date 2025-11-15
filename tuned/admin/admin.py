@@ -275,7 +275,7 @@ class Admin(object):
 		print("-" * 80)
 		
 		# Print hierarchy tree with actual includes
-		# The 4th element in each tuple is now the actual_loaded list
+		# The actual_includes list in each tuple already contains the profiles that were successfully loaded
 		max_level = max(level for _, _, level, _ in hierarchy)
 		
 		for prof_name, config, level, actual_includes in hierarchy:
@@ -289,7 +289,7 @@ class Admin(object):
 			else:
 				marker = ""
 			
-			# Show actual includes that were loaded (post-function-evaluation)
+			# Use the actual_includes that was tracked during loading
 			includes_display = ""
 			if actual_includes:
 				includes_display = " → includes: [%s]" % ", ".join(actual_includes)
