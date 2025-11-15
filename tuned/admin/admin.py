@@ -224,14 +224,25 @@ class Admin(object):
 					expanded, success = self._expand_functions_simple(inc)
 					included_profiles.append(expanded if success else inc)
 		
-		# Track which profiles THIS profile actually includes
+		# Track which profiles THIS profile actually includes (after successful loading)
 		actual_loaded = []
 		
 		# First, recursively load included profiles
 		for included in included_profiles:
 			if included and included not in processed:
-				hierarchy.extend(self._load_profile_hierarchy(included, processed, level + 1, include_map))
-				actual_loaded.append(included)
+				# Save hierarchy length before loading this include
+				before_len = len(hierarchy)
+				child_hierarchy = self._load_profile_hierarchy(included, processed, level + 1, include_map)
+				hierarchy.extend(child_hierarchy)
+				
+				# Check if any profiles were actually added from this include
+				if len(child_hierarchy) > 0:
+					# Find the top-level profile(s) that were added (level + 1)
+					# These are the direct children from this include directive
+					for new_prof, _, new_level, _ in child_hierarchy:
+						if new_level == level + 1:
+							# This is a direct child profile that was successfully loaded
+							actual_loaded.append(new_prof)
 		
 		# Store the actual includes for this profile
 		include_map[profile_name] = actual_loaded
