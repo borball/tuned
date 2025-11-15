@@ -473,25 +473,30 @@ class Admin(object):
 				
 				source_comment = source_display if (source != profile_name and len(hierarchy) > 1) else ""
 				
-				# Separate format: setting on one line, comment on next line if needed
+				# Fixed-width format with aligned comments
 				if expanded_value:
 					# Has expansion
 					if len(value) > 60 or len(display_expanded or "") > 50:
 						# Very long - multi-line format
-						print("  %s = %s" % (option, value))
-						print("    ↳ %s" % display_expanded)
 						if source_comment:
-							print("    # from: %s" % source_comment)
+							print("  %-40s = %-60s # %s" % (option, value, source_comment))
+							print("  %-40s   ↳ %s" % ("", display_expanded))
+						else:
+							print("  %s = %s" % (option, value))
+							print("  %-40s   ↳ %s" % ("", display_expanded))
 					else:
-						# Single line
-						print("  %s = %s → %s" % (option, value, display_expanded))
+						# Single line with expansion
 						if source_comment:
-							print("    # from: %s" % source_comment)
+							combined = "%s → %s" % (value, display_expanded)
+							print("  %-40s = %-60s # %s" % (option, combined, source_comment))
+						else:
+							print("  %s = %s → %s" % (option, value, display_expanded))
 				else:
-					# No expansion
-					print("  %s = %s" % (option, value))
+					# No expansion - simple format
 					if source_comment:
-						print("    # from: %s" % source_comment)
+						print("  %-40s = %-60s # %s" % (option, value, source_comment))
+					else:
+						print("  %s = %s" % (option, value))
 		
 		print()
 		print("-" * 80)
