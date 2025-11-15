@@ -473,8 +473,9 @@ class Admin(object):
 				
 				source_comment = source_display if (source != profile_name and len(hierarchy) > 1) else ""
 				
-				# Align comments at fixed position (column 130) to accommodate long values
-				COMMENT_COLUMN = 130
+				# Align comments at fixed position (column 120)
+				# If line is too long, put comment on next line
+				COMMENT_COLUMN = 120
 				
 				if expanded_value:
 					# Has expansion
@@ -482,7 +483,12 @@ class Admin(object):
 						# Very long - multi-line format
 						line = "  %s = %s" % (option, value)
 						if source_comment:
-							print("%-*s # %s" % (COMMENT_COLUMN, line, source_comment))
+							if len(line) > COMMENT_COLUMN - 10:
+								# Too long for same-line comment
+								print(line)
+								print("%-*s # %s" % (COMMENT_COLUMN, "", source_comment))
+							else:
+								print("%-*s # %s" % (COMMENT_COLUMN, line, source_comment))
 						else:
 							print(line)
 						print("    ↳ %s" % display_expanded)
@@ -490,14 +496,24 @@ class Admin(object):
 						# Single line with expansion
 						line = "  %s = %s → %s" % (option, value, display_expanded)
 						if source_comment:
-							print("%-*s # %s" % (COMMENT_COLUMN, line, source_comment))
+							if len(line) > COMMENT_COLUMN - 10:
+								# Too long for same-line comment
+								print(line)
+								print("%-*s # %s" % (COMMENT_COLUMN, "", source_comment))
+							else:
+								print("%-*s # %s" % (COMMENT_COLUMN, line, source_comment))
 						else:
 							print(line)
 				else:
 					# No expansion - simple format
 					line = "  %s = %s" % (option, value)
 					if source_comment:
-						print("%-*s # %s" % (COMMENT_COLUMN, line, source_comment))
+						if len(line) > COMMENT_COLUMN - 10:
+							# Too long for same-line comment
+							print(line)
+							print("%-*s # %s" % (COMMENT_COLUMN, "", source_comment))
+						else:
+							print("%-*s # %s" % (COMMENT_COLUMN, line, source_comment))
 					else:
 						print(line)
 		
